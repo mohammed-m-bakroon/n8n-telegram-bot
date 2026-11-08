@@ -1,0 +1,863 @@
+{
+  "name": "n8n Telegram bot",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -2064,
+        208
+      ],
+      "id": "738e872a-df4e-46e3-9eb3-8f1961ceb603",
+      "name": "Telegram Trigger",
+      "webhookId": "2031dcc5-204f-4b79-8d19-81f3cc28ed74",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message.text || $json.message.caption || \"The user sent an image.\"}}",
+        "options": {
+          "systemMessage": "=You have access to three tools: web_search, generate_image, and search_real_image.\n\n- Use web_search when the user asks about current events, dates, scores, schedules, news, or anything that could have changed recently. Never guess — search first, then answer based on the results.\n- Use search_real_image when the user asks for a real photo, real picture, or actual image of a real person, place, or thing.\n- Use generate_image when the user explicitly asks for an AI-generated, drawn, illustrated, or created image (not a real photo).\n\nCRITICAL OUTPUT RULE FOR IMAGES: When your response includes an image URL (from either generate_image or search_real_image), your ENTIRE response must be ONLY that single URL — nothing else. No greeting, no explanation, no \"here's a photo\", no extra options, no trailing text, no line breaks. If search_real_image returns multiple results, pick only the single best one and output just that URL. If none of the results look reliable (e.g. from Getty Images or stock photo sites that may block direct access), prefer results from Wikimedia Commons, official sites, or news CDN links instead.\n\nFor all other requests (text questions, conversations), respond normally in plain text."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1200,
+        400
+      ],
+      "id": "b2615f3c-f8f6-47f5-a5aa-85a2bae4d8d9",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.message.chat.id }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        -1264,
+        624
+      ],
+      "id": "a8cc45a5-3e5c-4ee1-ad59-ed27db65babe",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -448,
+        496
+      ],
+      "id": "3060811f-b460-4c69-bc1d-d622edc89db1",
+      "name": "Send a text message",
+      "webhookId": "ea856b0c-0a69-4342-a4ea-42a39e085e24",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "",
+          "cachedResultUrl": ""
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.5,
+      "position": [
+        -2064,
+        736
+      ],
+      "id": "2106deee-4d22-433d-81cd-f132dac7e21e",
+      "name": "Anthropic Chat Model",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "toolDescription": "Searches the web for current, real-time information like dates, news, scores, and events",
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"api_key\": \"YOUR_TAVILY_API_KEY\",\n  \"query\": \"{{ $fromAI('query', 'the search query', 'string') }}\",\n  \"max_results\": 3\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        -1136,
+        624
+      ],
+      "id": "a04dae5b-fee3-4394-83a8-7f01794be15c",
+      "name": "web_search"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Generates an image from a text description. Use this when the user asks to create, draw, or generate an image.",
+        "url": "=https://image.pollinations.ai/prompt/{{ encodeURIComponent($fromAI('prompt', 'a detailed English description of the image to generate', 'string')) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        -1008,
+        624
+      ],
+      "id": "f099d144-0fe9-4299-9df9-ca1fdeeeff81",
+      "name": "generate_image"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "581941c2-9b77-4389-8d5a-22d67b955b37",
+              "leftValue": "={{ $json.output }}",
+              "rightValue": "http",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -672,
+        400
+      ],
+      "id": "e28d48d6-6349-4d55-b06c-b88173869dd2",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.photo[$json.message.photo.length - 1].file_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -928,
+        16
+      ],
+      "id": "6ba88f6f-b9af-4587-a6a2-b9bfd51383ca",
+      "name": "Get a file",
+      "webhookId": "5f0295aa-9a95-4be8-958d-1688d7c43e35",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cc8aceda-38b1-44a1-9abe-62dc77d940a6",
+              "leftValue": "={{ $json.message.photo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "exists",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "666176d3-7355-492a-87de-9cb47647a6ac",
+              "leftValue": "={{ $json.message.caption }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1840,
+        208
+      ],
+      "id": "dccd8c6e-72ac-4f5d-8823-dd1ea151419d",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst base64 = buffer.toString('base64');\n\nreturn [{\n  json: {\n    base64Image: base64,\n    mimeType: item.binary.data.mimeType || 'image/jpeg',\n    caption: $('Telegram Trigger').first().json.message.caption || 'Describe or read the text in this image.'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        -80
+      ],
+      "id": "f9e8267c-6d22-4295-9abe-6babdc9aad98",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-5\",\n  \"max_tokens\": 1024,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"image\",\n          \"source\": {\n            \"type\": \"base64\",\n            \"media_type\": \"{{ $json.mimeType }}\",\n            \"data\": \"{{ $json.base64Image }}\"\n          }\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \"Caption from user: {{ $json.caption }}\\n\\nAnalyze the image and reply considering both the image and the caption together.\"\n        }\n      ]\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -224,
+        -80
+      ],
+      "id": "90fb8776-2595-4d41-809c-de2937b67478",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.content[1].text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        16
+      ],
+      "id": "520d0421-36f8-486d-9d05-8659f17c6f02",
+      "name": "Send a text message1",
+      "webhookId": "06e410a4-587f-4ba9-afc8-95833595bf2b",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "=message.caption",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -1616,
+        -32
+      ],
+      "id": "ad137e7a-4f36-4bda-a631-6b91e60924e1",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.message.photo }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "array",
+                      "operation": "exists",
+                      "singleValue": true
+                    },
+                    "id": "0b069cb7-ec46-4325-b274-200e9507e5b7"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "photo_only"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "19d8d6ee-6633-44d7-9ac8-8155d3cce604",
+                    "leftValue": "={{ $json.message.text }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "exists",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "text_only"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1616,
+        352
+      ],
+      "id": "7a7f0ed6-8770-493c-838d-7751424eb246",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOUR_ANTHROPIC_API_KEY"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-5\",\n  \"max_tokens\": 1024,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"image\",\n          \"source\": {\n            \"type\": \"base64\",\n            \"media_type\": \"{{ $json.mimeType }}\",\n            \"data\": \"{{ $json.base64Image }}\"\n          }\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \"\\nAnalyze the image and reply considering both the image analyze.\"\n        }\n      ]\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -224,
+        112
+      ],
+      "id": "9424bca1-7225-49d6-bf1e-0c3ea332410d",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{ $('Telegram Trigger').first().json.message.chat.id }}",
+        "file": "={{ $('AI Agent').item.json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -448,
+        304
+      ],
+      "id": "2de33093-f7ef-4bd5-a238-6f9c6a9e97fe",
+      "name": "Send a photo message1",
+      "webhookId": "e87764ce-461a-413c-ab44-09ce8b19fba4",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Searches Google Images and returns real photo URLs. Use this whenever the user asks for a real photo, real picture, or actual image of a real person, place, or object — as opposed to an AI-generated image.",
+        "url": "https://serpapi.com/search.json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "engine",
+              "value": "google_images"
+            },
+            {
+              "name": "q",
+              "value": "={{ $fromAI('query', 'search query describing the real photo to find', 'string') }}"
+            },
+            {
+              "name": "api_key",
+              "value": "YOUR_SERPAPI_API_KEY"
+            },
+            {
+              "name": "num",
+              "value": "5"
+            }
+          ]
+        },
+        "options": {},
+        "optimizeResponse": true,
+        "dataField": "images_results"
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        -880,
+        624
+      ],
+      "id": "71cfc433-deb5-4ff6-bb47-b186bc14ebeb",
+      "name": "search_real_image"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -1392,
+        624
+      ],
+      "id": "2710b91d-2f56-466c-8811-bfcf43ee270f",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "REPLACE_ME",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "89bac63f-b517-4e7a-a781-5f4fe3cb3c88",
+              "leftValue": "={{ $('Telegram Trigger').item.json.message.caption }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -672,
+        16
+      ],
+      "id": "ae825ccf-3ce6-439e-b83c-66d16f88b90c",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst base64 = buffer.toString('base64');\n\nreturn [{\n  json: {\n    base64Image: base64,\n    mimeType: item.binary.data.mimeType || 'image/jpeg',\n    caption:'Describe or read the text in this image.'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        112
+      ],
+      "id": "24cf3bd4-fc2a-43e7-97e9-a42f1f156a0e",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "content": "1️⃣ ENTRY\nTelegram Trigger → If1\n- Checks the incoming update type from Telegram.",
+        "height": 144,
+        "width": 336
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -2208,
+        32
+      ],
+      "typeVersion": 1,
+      "id": "779ccbf4-84d4-44b4-8218-c3cd101018e8",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "2️⃣ PHOTO + TEXT PATH (top branch)\nIf message contains BOTH a photo and text:\nSplit Out → Get a file → If3\n- If3 checks whether this is a real user message or not.\n  - TRUE: Code in JavaScript → HTTP Request (Claude API) → Send a text message1\n  - FALSE: Code in JavaScript1 → HTTP Request1 → Send a text message1\n- Purpose: extract the photo, build a combined photo+text message, send it to Claude for a response, then reply to the user.",
+        "height": 272,
+        "width": 528
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1232,
+        -304
+      ],
+      "typeVersion": 1,
+      "id": "69c8b719-c7f6-43bd-aa19-0c84642325ab",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "3️⃣ SWITCH NODE — routes based on message type\nThe Switch checks the incoming message and splits into two outputs: photo_only and text_only.",
+        "width": 256
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1872,
+        480
+      ],
+      "typeVersion": 1,
+      "id": "079c1488-4702-45be-9de1-4a85a42b0c94",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "🔹 PATH A: photo_only\n- Triggered when the user sends ONLY a photo (no caption/text).\n- Goes to Get a file (downloads/retrieves the photo file from Telegram).\n- Then feeds into the SAME If3 node used by the photo+text branch:\n  - TRUE (real message) → Code in JavaScript → HTTP Request → Send a text message1\n  - FALSE (not real) → Code in JavaScript1 → HTTP Request1 → Send a text message1",
+        "height": 256,
+        "width": 512
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1472,
+        96
+      ],
+      "typeVersion": 1,
+      "id": "5d52b05a-bc1d-46bf-8e52-e845c0f658a9",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "🔹 PATH B: text_only\n- Triggered when the user sends ONLY text (no photo).\n- Goes to AI Agent.\n- The agent processes the text as a normal conversational request and can call any of its tools as needed:\n  - web_search — for factual/current info lookups\n  - generate_image — to create an AI image via Pollinations.ai\n  - search_real_image — to find a real image via SerpAPI\n- Response routed through If → sent back as either a photo (Send a photo message1, if an image was generated/found) or text (Send a text message, plain reply).",
+        "height": 304,
+        "width": 560
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -192,
+        320
+      ],
+      "typeVersion": 1,
+      "id": "8d476dd9-14ea-4e67-a46c-8633da39eb57",
+      "name": "Sticky Note4"
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "web_search": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "generate_image": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a photo message1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a file": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Get a file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Get a file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "search_real_image": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
